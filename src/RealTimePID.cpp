@@ -51,7 +51,7 @@ static float steering, steering2;
 
 /* function header */
 int PID_init();
-int sign_d();
+int sign_d(double val);
 
 /* ROS class for subscribing and publishing to different node */
 class SubscribeandPublish {
@@ -65,15 +65,18 @@ public:
 	}
 	void callBack(const racecar::LOC::ConstPtr& msg) 
 	{
+
+		double val = (line->A*car_state->x) + (line->B*car_state->y)+ line->C;
 		/* previous location of car */
 		ROS_INFO("x: %f, y: %f, head: %f", car_state->x, car_state->y, car_state->heading);
 		/* create command message to publish */ 
 		::racecar::CMD cmd;
 		/* calculate error variable */
 		error_an = (-1) * (car_state->heading -car_state->gamma);
-		error_d = sign_d();
+		error_d = sign_d(val) * abs(val) / sqrt(pow(line->A,2) + pow(line->B,2));
+		ROS_INFO("error_an = %f, error_d = %f", error_an, error_d);
 		/* calculate initial steering angle */
-		steering = P1 * error_an + P2 * error_d;
+		steering = P1 * error_d + P2 * error_an;
 		/* calculate final steering angle */
 		steering2 = 1000 / (1+exp((-steering)/K)) + 1000;
 		ROS_INFO("steering2 = %f, InTemp = %f", round(steering2), car_state->InTemp);
@@ -81,7 +84,7 @@ public:
 		if (round(steering2) != car_state->InTemp){
 			car_state->InTemp = round(steering2);
 			cmd.mode = 'f';
-			cmd.speed = 34;
+			cmd.speed = 36;
 			cmd.steering = round(steering2);
 	
 			ROS_INFO("sending data: \n");
@@ -106,17 +109,11 @@ private:
 * purpose: sign difference wrapper function
 * on a set of values
 **********************************************/
-int sign_d() {
-	int error;
-	double A_sqr = pow(line->A, 2);
-	double B_sqr = pow(line->B, 2);
-	double val = (line->A*car_state->x) + (line->B*car_state->y)+ line->C;
-	double abs_val = abs(val);
-	double sqrt_val = sqrt(A_sqr + B_sqr);
-	if(((val * abs_val) / sqrt_val) > 0) {
+int sign_d(double val) {
+	if(val > 0) {
 		return 1;
 	}
-	else if (((val * abs_val) / sqrt_val) > 0) {
+	else if (val == 0) {
 		return 0;
 	}
 	else {
@@ -186,7 +183,7 @@ int main (int argc, char **argv) {
 	}
 	/* declare objects */
 	SubscribeandPublish SAPObject;
-	ros::Rate loop_rate(100);
+	ros::Rate loop_rate(10);
 	::racecar::CMD cmd;
 	/* main control loop */
 	for(k=0; k<3; k++) {
@@ -197,7 +194,7 @@ int main (int argc, char **argv) {
 		if (car_state->gamma < 0) {
 			car_state->gamma = car_state->gamma +2 * PI;
 		}
-		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>450) {
+		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>450 && ros::ok()) {
 			ROS_INFO("travelling to next point");
 			ros::spinOnce();
 			loop_rate.sleep();
