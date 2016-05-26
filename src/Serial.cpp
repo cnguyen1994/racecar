@@ -21,7 +21,6 @@ typedef struct {
 	uint32_t steering;
 }COMMAND;
 static int fd = -1;
-static size_t n_written = 0;
 static COMMAND *action;
 void get_cmds(const racecar::CMD::ConstPtr& msg);
 void toArray(unsigned char *numberArray, int number);
@@ -62,12 +61,17 @@ int main(int argc, char **argv) {
 	int count, i;
 	unsigned char rx_buf[256];
 	unsigned char tx_buf[256];
+	size_t n_written = 0;
+        size_t n_read = 0;
   	struct termios toptions;
 	memset(&toptions, 0, sizeof(toptions));
 	action = (COMMAND *)calloc(sizeof(COMMAND),1);
+	action->speed = 0;
+	action->steering = 1500;
+	action->mode = 'f';
 	/* open serial port */
 	sleep(3); //wait for tty to init
-	fd = open("/dev/arduino_uno", O_RDWR | O_NOCTTY);
+	fd = open("/dev/arduino_mega", O_RDWR | O_NOCTTY);
 	printf("fd opened as %d\n", fd);
 	  
 	/* wait for the Arduino to reboot */
@@ -82,21 +86,22 @@ int main(int argc, char **argv) {
 	}
 
 	/* set 9600 baud both ways */
+	cfmakeraw(&toptions);
+
 	cfsetispeed(&toptions, B115200);
 	cfsetospeed(&toptions, B115200);
-
-	/* 8 bits, no parity, no stop bits */
-	toptions.c_cflag &= ~PARENB;
-	toptions.c_cflag |= 0;
-	toptions.c_cflag &= ~CSTOPB;
-	toptions.c_cflag = (toptions.c_cflag & ~CSIZE) | CS8;
-	
+	/* 8 bits, no parity, one stop bits */
+	//toptions.c_cflag |= (CS8 | CREAD | CLOCAL);
+	//toptions.c_cflag &= ~(CSTOPB | CSIZE | PARENB);
 	/* no hardware flow control */
-	toptions.c_cflag &= ~CRTSCTS;
+	//toptions.c_cflag &= ~CRTSCTS;
 	/* enable receriver, ignore status line */
-	toptions.c_cflag |= (CLOCAL | CREAD);
 	/* disable input/output flow control, disable restart chars */
-	toptions.c_iflag &= ~(IXON | IXOFF | IXANY);
+	//toptions.c_iflag &= ~(IXON| IXANY | IXOFF);
+	//toptions.c_iflag |= IGNPAR | IGNCR;
+	//toptions.c_lflag |= ICANON;
+	//toptions.c_oflag &= ~OPOST;
+	
 	/* disable canonical input, disable echo,
  	disable visually erase chars,disable terminal-generated signals */
 	/* commit the serial port settings */
@@ -105,31 +110,39 @@ int main(int argc, char **argv) {
 		close(fd);
 		return -1;
 	}
-
+	usleep(1000);
 	/* set up subscription */ 
 	ros::init(argc, argv, "Serial");
 	ros::NodeHandle n;
 	ros::Subscriber sub = n.subscribe("command", 1000, get_cmds);
-	ros::Rate loop_rate(100);
+	ros::Rate loop_rate(10);
 	ros::Duration time = loop_rate.expectedCycleTime();
 	std::cout <<time<<'\n';
 	printf("start serial program \n");
 	ROS_INFO("streaming command");
-	while(ros::ok()) {
+	//rx_buf[0] = '0';
+	do{
+		rx_buf[0] = ' ';
 		/* stream command */
 		serialize_command(tx_buf, action); 
 		printf("command: %s \n", tx_buf);
 		n_written = write(fd, tx_buf, 10);
+		printf("written %d bytes to port %d \n", n_written, fd);
 		if (n_written < 0) {
 			perror("Write error");
 			return -1;
 		}
+		//usleep(100);
+		n_read = read(fd, rx_buf, 10);
+		printf("read %d bytes from arduino\n", n_read);
+	 	for (i=0; i<n_read; i++){
+			printf("rx_buf[%d] = %c\n", i, rx_buf[i]);
+		}
 		//usleep(50000);
-		printf("written %d bytes to port %d \n", n_written, fd);
 		memset(tx_buf, 0, sizeof(tx_buf));
 		ros::spinOnce();
 		loop_rate.sleep();
-	}
+	}while(ros::ok() && rx_buf[0] == '$');
 	free(action);
 	close(fd);
 	fd = -1;
