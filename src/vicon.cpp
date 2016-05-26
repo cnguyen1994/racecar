@@ -87,7 +87,7 @@ int main (int argc, char **argv) {
 	ROS_INFO("Host connected");
 	sleep(2);
 	int count = 0;
-	ros::Rate loop_rate(100);
+	ros::Rate loop_rate(10);
 	loc = (LOCALIZATION *)malloc(sizeof(LOCALIZATION));
 	while(ros::ok()) {
 		/* publishing at 10Mhz */
