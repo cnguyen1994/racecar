@@ -70,24 +70,30 @@ int main (int argc, char **argv) {
 	sleep(3); //wait for wifi to connect
 	/* get host ip */
 	server = gethostbyname("192.168.0.2");
-	if (server == NULL)
+	if (server == NULL) {
 		ROS_INFO("ERROR no such host");
+		return -1;
+	}
 	/* create socket */
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
+	if (sockfd < 0) {
 		ROS_INFO("ERROR opening socket \n");
+		return -1;
+	}
 	/* setting up tcp/ip struct */
 	bzero((char *) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	bcopy((char *)server->h_addr, (char*)&serv_addr.sin_addr.s_addr, server->h_length);
 	serv_addr.sin_port = htons(portno);
 	/* connecting the host */
-	if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+	if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
 		ROS_INFO("ERROR connecting");
+		return -1;
+	}
 	ROS_INFO("Host connected");
 	sleep(2);
 	int count = 0;
-	ros::Rate loop_rate(10);
+	ros::Rate loop_rate(100);
 	loc = (LOCALIZATION *)malloc(sizeof(LOCALIZATION));
 	while(ros::ok()) {
 		/* publishing at 10Mhz */
@@ -103,11 +109,10 @@ int main (int argc, char **argv) {
 		if (num < 0) {
 			ROS_INFO("ERROR reading from socket");	
 		}
-		
-		char **tokens = parse_str(buffer, ',');
-		loc_data.x_cor = atof(*(tokens));
-		loc_data.y_cor = atof(*(tokens + 1));
-		loc_data.heading = atof(*(tokens +2));
+			char **tokens = parse_str(buffer, ',');
+			loc_data.x_cor = atof(*(tokens));
+			loc_data.y_cor = atof(*(tokens + 1));
+			loc_data.heading = atof(*(tokens +2));
 		ROS_INFO("publishing: x: %f, y: %f, heading: %f", loc_data.x_cor, loc_data.y_cor, loc_data.heading);
 		chatter_pub.publish(loc_data);
 		ros::spinOnce();

@@ -21,8 +21,8 @@ using namespace std;
 /* declaring data structure */
 /* path matrix */
 typedef struct {
-	int x1;
-	int x2;
+	double x1;
+	double x2;
 }TRAJECTORY;
 /* car state structure */
 typedef struct {
@@ -81,10 +81,10 @@ public:
 		steering2 = 1000 / (1+exp((-steering)/K)) + 1000;
 		ROS_INFO("steering2 = %f, InTemp = %f", round(steering2), car_state->InTemp);
 		/* send command if steering angle is different from that of the previous one */
-		if (round(steering2) != car_state->InTemp){
+		if (abs(round(steering2) - (car_state->InTemp)) >= 10){
 			car_state->InTemp = round(steering2);
 			cmd.mode = 'f';
-			cmd.speed = 36;
+			cmd.speed = 37;
 			cmd.steering = round(steering2);
 	
 			ROS_INFO("sending data: \n");
@@ -135,10 +135,10 @@ int PID_init() {
 		path[i] = (TRAJECTORY *) malloc(sizeof(TRAJECTORY));
 	}
 	/* declare trajectory */
-	path[0]->x1 = 1173; path[0]->x2 = -3065;
-	path[1]->x1 = -322; path[1]->x2 = -861;
-	path[2]->x1 = -430; path[2]->x2 = 593;
-	path[3]->x1 = -1519; path[3]->x2 = 2208;
+	path[0]->x1 = 1826; path[0]->x2 = -3127;
+	path[1]->x1 = 72; path[1]->x2 = -1283;
+	path[2]->x1 = 76; path[2]->x2 = -108;
+	path[3]->x1 = -1144; path[3]->x2 = 1758;
 	/* allocate data structure to hold car's state */
 	car_state = (STATE *) calloc(sizeof(STATE),1);
 	/* allocate data structure to path constant */
@@ -147,13 +147,13 @@ int PID_init() {
 	/* assign initial value */	
 	
 	if(car_state == NULL) return -1;
-	car_state->x = 1.9758841;
-	car_state->y = -2.808184;
-	car_state->heading = 5.125469;
+	car_state->x = 0;
+	car_state->y = 0;
+	car_state->heading = 0;
 	car_state->InTemp = -1;
 	car_state->gamma = 0;
 	P1 = 0.225;
-	P2 = 500;
+	P2 = 500;//500
 	I = 0;
 	D = 0;	
 	pError = 0;
@@ -183,7 +183,7 @@ int main (int argc, char **argv) {
 	}
 	/* declare objects */
 	SubscribeandPublish SAPObject;
-	ros::Rate loop_rate(10);
+	ros::Rate loop_rate(100);
 	::racecar::CMD cmd;
 	/* main control loop */
 	for(k=0; k<3; k++) {
