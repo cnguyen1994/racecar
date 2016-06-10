@@ -13,7 +13,7 @@
 /* Macros for computing */
 
 #define PI 3.14159265
-#define PATHSIZE 4
+#define PATHSIZE 6
 #define K 200
 
 using namespace std;
@@ -98,6 +98,15 @@ public:
 		ROS_INFO("updated: x: %f, y: %f, head: %f", car_state->x, car_state->y, car_state->heading); 
 				
 	}
+	void stop()
+	{
+		::racecar::CMD cmd;
+		cmd.mode ='f';
+		cmd.speed = 0;
+		cmd.steering = 1500;
+		ROS_INFO("Stopping the car");
+		pub_.publish(cmd);
+	}
 private:
 	/* class private variable */
 	ros::NodeHandle n_; 
@@ -136,9 +145,12 @@ int PID_init() {
 	}
 	/* declare trajectory */
 	path[0]->x1 = 1826; path[0]->x2 = -3127;
-	path[1]->x1 = 72; path[1]->x2 = -1283;
-	path[2]->x1 = 76; path[2]->x2 = -108;
-	path[3]->x1 = -1144; path[3]->x2 = 1758;
+	path[1]->x1 = 927; path[1]->x2 = -2070;
+	path[2]->x1 = 419; path[2]->x2 = -1028;
+	path[3]->x1 = 931; path[3]->x2 = 208;
+	path[4]->x1 = 1666; path[4]->x2 = 1244;
+	path[5]->x1 = 1395; path[5]->x2 = 2398;
+
 	/* allocate data structure to hold car's state */
 	car_state = (STATE *) calloc(sizeof(STATE),1);
 	/* allocate data structure to path constant */
@@ -152,7 +164,7 @@ int PID_init() {
 	car_state->heading = 0;
 	car_state->InTemp = -1;
 	car_state->gamma = 0;
-	P1 = 0.225;
+	P1 = 0.225;//0.225
 	P2 = 500;//500
 	I = 0;
 	D = 0;	
@@ -182,11 +194,11 @@ int main (int argc, char **argv) {
 		ROS_INFO("Failed to initialized PID controls parameters");
 	}
 	/* declare objects */
-	SubscribeandPublish SAPObject;
+	SubscribeandPublish ROS_PID;
 	ros::Rate loop_rate(100);
-	::racecar::CMD cmd;
+	//::racecar::CMD cmd;
 	/* main control loop */
-	for(k=0; k<3; k++) {
+	for(k=0; k<PATHSIZE-1; k++) {
 		line->A = path[k]->x2 - path[k+1]->x2;
 		line->B = path[k+1]->x1 - path[k]->x1;
 		line->C = (path[k]->x1 * path[k+1]->x2) - (path[k+1]->x1 *path[k]->x2);
@@ -194,11 +206,16 @@ int main (int argc, char **argv) {
 		if (car_state->gamma < 0) {
 			car_state->gamma = car_state->gamma +2 * PI;
 		}
-		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>450 && ros::ok()) {
+		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>650 && ros::ok()) {
 			ROS_INFO("travelling to next point");
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
+	}
+	while(ros::ok()){
+	  ROS_PID.stop();
+	  ros::spinOnce();
+	  loop_rate.sleep();
 	}
 	PID_close();
 	return 0;
