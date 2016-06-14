@@ -19,10 +19,16 @@ extern "C" {
 #include <iostream>
 #include <ctime>
 #include <iostream>
+#include <vector>
 
 #include "rrts.hpp"
 #include "system_single_integrator.h"
 
+#include "ros/ros.h"
+#include "racecar/POINT.h"
+#include "racecar/TRA.h"
+#include "racecar/LOC.h"
+#include "std_msgs/String.h"
 
 using namespace RRTstar;
 using namespace SingleIntegrator;
@@ -83,12 +89,43 @@ bool parse_loc(char *buffer, int *buf_pos, Position *loc) {
 	loc->th = atof(temp);
 	return true;
 }
-
+char** parse_str(char *a_str, const char delimiter) {
+	char **result = 0;
+	size_t count = 0;
+	char* tmp = a_str;
+	char* last_comma = 0;
+	char delim[2];
+	delim[0] = delimiter;
+	delim[1] = 0;
+	
+	while (*tmp) {
+		if (delimiter == *tmp){
+			count ++;
+			last_comma = tmp;
+		}
+		tmp++;
+	}
+	count += last_comma < (a_str + strlen(a_str) -1);
+	count ++;
+	result = (char**) malloc(sizeof(char*) * count);
+	if (result){
+		size_t idx =0;
+		char* token = strtok(a_str, delim);
+		while(token) {
+			assert(idx < count);
+			*(result + idx++) = strdup(token);
+			token = strtok(0, delim);
+		}
+		assert(idx == count -1);
+		*(result + idx) =0;
+	}
+	return result;
+}
 int main (int argc, char**argv) {
-  if(argc != 2){
+  /*if(argc != 2){
     printf("Usage: ./racecar <goal_x, goal_y, goal_z> \n");
     exit(-1);
-  }
+  }*/
   /* declare goal region size */
   Position gr_size;
   gr_size.x = 200;
@@ -143,10 +180,11 @@ int main (int argc, char**argv) {
   Position obs_loc[8];
   int obs_count = 0;
   int buf_pos = 0;
-  
+  char gl[256];
   printf("- Buffer read: %s\n", buffer);	
-
-  parse_loc(argv[1], &buf_pos, &goal_loc);
+  bzero(gl, 256);
+  strcpy(gl, "1582,-918,174");
+  parse_loc(gl, &buf_pos, &goal_loc);
   printf("- Goal point: [%lf, %lf, %lf]\n", goal_loc.x, goal_loc.y, goal_loc.th);
 	
   buf_pos = 0;
@@ -229,13 +267,13 @@ int main (int argc, char**argv) {
     //   optimality. Larger values will weigh on optimization 
     //   rather than exploration in the RRT* algorithm. Lower 
     //   values, such as 0.1, should recover the RRT.
-    rrts.setGamma (1.2);
+    rrts.setGamma (2.5);
 
     
     
     // Run the algorithm for 10000 iteartions
-    for (int i = 0; i < 20000; i++) {
-      cout<<"itertations: "<<i<<"\n";
+    for (int i = 0; i < 1000; i++) {
+      //cout<<"itertations: "<<i<<"\n";
         rrts.iteration ();
     }
     cout<<"All iterations finished"<<"\n";
@@ -264,6 +302,56 @@ int main (int argc, char**argv) {
       cout << "- Trajectory not found..." << endl;
     }
     /*-RRT* initialization end-*/
+    
+    /*-set up ROS subscription-*/
+    ros::init(argc, argv, "RRTstar");
+    ros::NodeHandle n;
+    ros::Publisher trajectory_pub = n.advertise<racecar::TRA>("trajectory", 1000);
+    ros::Publisher localization_pub = n.advertise<racecar::LOC>("localization", 1000);
+    ::racecar::LOC loc_data;
+    ::racecar::TRA trajec;
+    ::racecar::POINT check_pt;
+    ros::Rate loop_rate(100);
+    /*-Send trajectory to PID-*/
+    for(int i =0 ; i < chk_cnt; i++){
+      check_pt.point_x = chk_pnt[i].x;
+      check_pt.point_y = chk_pnt[i].y;
+      trajec.trajectory.push_back(check_pt);
+    }
+    for(int i =0; i < 50; i++) {
+      ROS_INFO("publish trajectory");
+      trajectory_pub.publish(trajec);
+      ros::spinOnce();
+      loop_rate.sleep();
+    }
+    /*-Send complete-*/
+
+    /*-Tracking Car program-*/
+    	while(ros::ok()) {
+		/* publishing at 10Mhz */
+		//ros::Rate loop_rate(10);
+
+                bzero(buffer, 1024);
+		strcpy(buffer, "get_state2minimal");
+		num = write(sockfd, buffer, strlen(buffer));
+		if (num < 0)
+			ROS_INFO("ERROR writing to socket");
+		bzero(buffer, 1024);
+		num = read(sockfd, buffer, 1024);
+		if (num < 0) {
+			ROS_INFO("ERROR reading from socket");	
+		}
+		char **tokens = parse_str(buffer, ',');
+	        loc_data.x_cor = atof(*(tokens));
+		loc_data.y_cor = atof(*(tokens + 1));
+		loc_data.heading = atof(*(tokens +2));
+		ROS_INFO("publishing: x: %f, y: %f, heading: %f", loc_data.x_cor, loc_data.y_cor, loc_data.heading);
+		localization_pub.publish(loc_data);
+		ros::spinOnce();
+		loop_rate.sleep();
+	}
+    close(sockfd);
+    sockfd =-1;
     return 0;
 
     

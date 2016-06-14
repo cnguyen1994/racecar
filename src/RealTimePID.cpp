@@ -1,6 +1,8 @@
 #include "ros/ros.h"
 #include "racecar/CMD.h"
 #include "racecar/LOC.h"
+#include "racecar/POINT.h"
+#include "racecar/TRA.h"
 #include "std_msgs/String.h"
 
 
@@ -9,11 +11,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <vector>
 
 /* Macros for computing */
 
 #define PI 3.14159265
-#define PATHSIZE 6
 #define K 200
 
 using namespace std;
@@ -40,6 +42,8 @@ typedef struct {
 }LINE_CONSTANT;
 
 /* global variable */
+bool path_init = false;
+static int pathsize = 0;
 static char *buffer = NULL;
 static LINE_CONSTANT *line;
 static TRAJECTORY **path; //matrix holding tracjectory
@@ -61,9 +65,10 @@ public:
 	{
 		/* declare publisher and subscriber */
 		pub_ = n_.advertise<racecar::CMD>("command", 1000);
-		sub_ = n_.subscribe("localization", 1000, &SubscribeandPublish::callBack, this);
+		sub_loc = n_.subscribe("localization", 1000, &SubscribeandPublish::callBack_localization, this);
+		sub_tra = n_.subscribe("trajectory", 1000,  &SubscribeandPublish::callBack_trajectory, this);
 	}
-	void callBack(const racecar::LOC::ConstPtr& msg) 
+	void callBack_localization(const racecar::LOC::ConstPtr& msg) 
 	{
 
 		double val = (line->A*car_state->x) + (line->B*car_state->y)+ line->C;
@@ -98,6 +103,19 @@ public:
 		ROS_INFO("updated: x: %f, y: %f, head: %f", car_state->x, car_state->y, car_state->heading); 
 				
 	}
+        void callBack_trajectory(const racecar::TRA::ConstPtr& msg)
+        {
+	  ROS_INFO("Receive trajectory data");
+	  pathsize = msg->trajectory.size();
+	  path = (TRAJECTORY **)malloc(sizeof(TRAJECTORY *) * pathsize);
+	  for(int i =0; i< pathsize; i++){
+	    path[i] = (TRAJECTORY *)calloc(sizeof(TRAJECTORY), 1);
+	    path[i]->x1 = msg->trajectory[i].point_x;
+	    path[i]->x2 = msg->trajectory[i].point_y;
+	    ROS_INFO("point %d of path: x = %f , y = %f", i, path[i]->x1, path[i]->x2);
+	  }
+	  path_init = true;
+	}
 	void stop()
 	{
 		::racecar::CMD cmd;
@@ -111,7 +129,8 @@ private:
 	/* class private variable */
 	ros::NodeHandle n_; 
   	ros::Publisher pub_;
-  	ros::Subscriber sub_;
+  	ros::Subscriber sub_loc;
+        ros::Subscriber sub_tra;
 };
 /*********************************************
 * function: sign_d() 
@@ -137,13 +156,8 @@ int sign_d(double val) {
 int PID_init() {
 	sleep(3);
 	int i;
-	/* allocate data structure to hold trajectory information */
-	path = (TRAJECTORY **) malloc(sizeof(TRAJECTORY *) * PATHSIZE);
-	if(path == NULL) return -1;
-	for(i =0; i<PATHSIZE; i++) {
-		path[i] = (TRAJECTORY *) malloc(sizeof(TRAJECTORY));
-	}
-	/* declare trajectory */
+       	/* declare trajectory */
+	/*
 	path[0]->x1 = 1826; path[0]->x2 = -3127;
 	path[1]->x1 = 927; path[1]->x2 = -2070;
 	path[2]->x1 = 419; path[2]->x2 = -1028;
@@ -198,7 +212,13 @@ int main (int argc, char **argv) {
 	ros::Rate loop_rate(100);
 	//::racecar::CMD cmd;
 	/* main control loop */
-	for(k=0; k<PATHSIZE-1; k++) {
+	do {
+	  ROS_INFO("waiting for trajectory");
+	  ros::spinOnce();
+	  loop_rate.sleep();
+	}while(path_init == false && ros::ok());
+       
+	for(k=0; k<pathsize-1; k++) {
 		line->A = path[k]->x2 - path[k+1]->x2;
 		line->B = path[k+1]->x1 - path[k]->x1;
 		line->C = (path[k]->x1 * path[k+1]->x2) - (path[k+1]->x1 *path[k]->x2);
@@ -216,7 +236,7 @@ int main (int argc, char **argv) {
 	  ROS_PID.stop();
 	  ros::spinOnce();
 	  loop_rate.sleep();
-	}
+	  }
 	PID_close();
 	return 0;
 }	

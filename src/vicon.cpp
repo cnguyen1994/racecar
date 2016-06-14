@@ -120,6 +120,7 @@ int main (int argc, char **argv) {
 		count++;
 
 	}
+	free(loc);
 	close(sockfd);
 	sockfd =-1;
 	return 0;
