@@ -14,6 +14,8 @@ add_message_files(
 	FILES
 	CMD.msg
 	LOC.msg
+	POINT.msg
+	TRA.msg
 )
 
 generate_messages(
@@ -35,9 +37,6 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
-add_executable(vicon src/vicon.cpp)
-target_link_libraries(vicon ${catkin_LIBRARIES})
-add_dependencies(vicon racecar_generate_messages_cpp)
 
 add_executable(RealTimePID src/RealTimePID.cpp)
 target_link_libraries(RealTimePID ${catkin_LIBRARIES})
@@ -46,6 +45,10 @@ add_dependencies(RealTimePID racecar_generate_messages_cpp)
 add_executable(Serial src/Serial.cpp)
 target_link_libraries(Serial ${catkin_LIBRARIES})
 add_dependencies(Serial racecar_generate_messages_cpp)
+
+add_executable(rrtstar src/rrts_main.cpp src/system_single_integrator.cpp src/kdtree.c src/rrts.hpp)
+target_link_libraries(rrtstar ${catkin_LIBRARIES})
+add_dependencies(rrtstar racecar_generate_messages_cpp)
 
 ## Declare a C++ library
 # add_library(racecar
