@@ -1,6 +1,6 @@
 <launch>
 	<group ns="auto_rc">
-		<node name="vicon_node" pkg="racecar" type="vicon" respawn="true"/>
+		<node name="rrtstar_node" pkg="racecar" type="rrtstar" respawn="true"/>
 		<node name="RealTimePID_node" pkg="racecar" type="RealTimePID" respawn="true"/>
 		<node name="Serial_node" pkg="racecar" type="Serial" respawn="true"/>
 	</group>
