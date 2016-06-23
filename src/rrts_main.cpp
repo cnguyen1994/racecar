@@ -140,7 +140,7 @@ int main (int argc, char**argv) {
   int portno, num;
   struct sockaddr_in serv_addr;
   struct hostent *server;
-  char buffer[1024];
+  char buffer[2056];
   cout<<"RRT Program has started"<<"\n";
   // port number
   portno = 30000;
@@ -164,13 +164,13 @@ int main (int argc, char**argv) {
 
 
   /*-Get position of car-*/
-  bzero(buffer, 1024);
+  bzero(buffer, 2056);
   strcpy(buffer, "get_all");
   num = write(sockfd, buffer, strlen(buffer));
   if (num < 0)
  	error("ERROR writing to socket");
   printf("- Getting all positions...\n");
-  bzero(buffer, 1024);
+  bzero(buffer, 2056);
 	// TODO: increase the size of buffer to track more obstacles.
   num = read(sockfd, buffer, 1023);
   if (num < 0)
@@ -180,14 +180,12 @@ int main (int argc, char**argv) {
   Position obs_loc[8];
   int obs_count = 0;
   int buf_pos = 0;
-  char gl[256];
+  //char gl[256];
   printf("- Buffer read: %s\n", buffer);	
-  bzero(gl, 256);
-  strcpy(gl, "1582,-918,174");
-  parse_loc(gl, &buf_pos, &goal_loc);
+  buf_pos = 0;
+  parse_loc(buffer, &buf_pos, &goal_loc);
   printf("- Goal point: [%lf, %lf, %lf]\n", goal_loc.x, goal_loc.y, goal_loc.th);
 	
-  buf_pos = 0;
   parse_loc(buffer, &buf_pos, &rc_loc);
   printf("- Starting point: [%lf, %lf, %lf]\n", rc_loc.x, rc_loc.y, rc_loc.th);
 
@@ -267,17 +265,18 @@ int main (int argc, char**argv) {
     //   optimality. Larger values will weigh on optimization 
     //   rather than exploration in the RRT* algorithm. Lower 
     //   values, such as 0.1, should recover the RRT.
-    rrts.setGamma (2.5);
+    rrts.setGamma (1.5);
 
     
     
     // Run the algorithm for 10000 iteartions
-    for (int i = 0; i < 1000; i++) {
-      //cout<<"itertations: "<<i<<"\n";
+    for (int i = 0; i < 5000; i++) {
+        cout<<"itertations: "<<i<<"\n";
         rrts.iteration ();
     }
     cout<<"All iterations finished"<<"\n";
     Point chk_pnt[256];
+    char *mat_buf = (char*) malloc(sizeof(char)*2056);
     int chk_cnt;
     int even = 0;
 
@@ -285,6 +284,7 @@ int main (int argc, char**argv) {
     if (rrts.getBestTrajectory(trajectory)) {
       list<double*>::const_iterator iterator;
       for (iterator = trajectory.begin(); iterator != trajectory.end(); iterator ++) {
+	sprintf(mat_buf + (sizeof(double)*even), "|%f|", *(*iterator));
 	if (even % 2 == 0) {
 	  chk_pnt[chk_cnt].x = *(*iterator);
 	  chk_pnt[chk_cnt].y = *(*iterator+1);
@@ -318,6 +318,10 @@ int main (int argc, char**argv) {
       check_pt.point_y = chk_pnt[i].y;
       trajec.trajectory.push_back(check_pt);
     }
+    /*-Send trajectory to MATLAB-*/
+    cout<<"sending trajectory to MATLAB for debuf"<<endl;
+    num = write(sockfd, mat_buf, (even-1)*sizeof(double));
+    cout<<num<<endl;
     for(int i =0; i < 50; i++) {
       ROS_INFO("publish trajectory");
       trajectory_pub.publish(trajec);
@@ -331,7 +335,7 @@ int main (int argc, char**argv) {
 		/* publishing at 10Mhz */
 		//ros::Rate loop_rate(10);
 
-                bzero(buffer, 1024);
+    	bzero(buffer, 2056);
 		strcpy(buffer, "get_state2minimal");
 		num = write(sockfd, buffer, strlen(buffer));
 		if (num < 0)
@@ -342,15 +346,16 @@ int main (int argc, char**argv) {
 			ROS_INFO("ERROR reading from socket");	
 		}
 		char **tokens = parse_str(buffer, ',');
-	        loc_data.x_cor = atof(*(tokens));
+		loc_data.x_cor = atof(*(tokens));
 		loc_data.y_cor = atof(*(tokens + 1));
 		loc_data.heading = atof(*(tokens +2));
 		ROS_INFO("publishing: x: %f, y: %f, heading: %f", loc_data.x_cor, loc_data.y_cor, loc_data.heading);
 		localization_pub.publish(loc_data);
 		ros::spinOnce();
 		loop_rate.sleep();
-	}
+		}
     close(sockfd);
+    free(mat_buf);
     sockfd =-1;
     return 0;
 
