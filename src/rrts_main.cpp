@@ -127,12 +127,12 @@ int main (int argc, char**argv) {
     exit(-1);
   }*/
   /* declare goal region size */
-  Position gr_size;
+  /*  Position gr_size;
   gr_size.x = 200;
   gr_size.y = 200;
   
   /* declare region operating size */
-  Position ro_size;
+  /*  Position ro_size;
   ro_size.x = 10000;
   ro_size.y = 10000;
   
@@ -143,7 +143,7 @@ int main (int argc, char**argv) {
   char buffer[2056];
   cout<<"RRT Program has started"<<"\n";
   // port number
-  portno = 30000;
+  portno = 30001;
   // server address
   server = gethostbyname("192.168.0.2");
   if (server == NULL) error("ERROR no such host");
@@ -177,15 +177,15 @@ int main (int argc, char**argv) {
        	error("ERROR reading from socket");
   Position rc_loc;
   Position goal_loc;
-  Position obs_loc[8];
+  Position obs_loc[50];
   int obs_count = 0;
   int buf_pos = 0;
   //char gl[256];
   printf("- Buffer read: %s\n", buffer);	
-  buf_pos = 0;
+  /*  buf_pos = 0;
   parse_loc(buffer, &buf_pos, &goal_loc);
   printf("- Goal point: [%lf, %lf, %lf]\n", goal_loc.x, goal_loc.y, goal_loc.th);
-	
+*/	
   parse_loc(buffer, &buf_pos, &rc_loc);
   printf("- Starting point: [%lf, %lf, %lf]\n", rc_loc.x, rc_loc.y, rc_loc.th);
 
@@ -203,7 +203,7 @@ int main (int argc, char**argv) {
     
     cout << "RRTstar is alive" << endl;
     
-    
+    /*    
     
     
     // Create the dynamical system
@@ -275,11 +275,12 @@ int main (int argc, char**argv) {
         rrts.iteration ();
     }
     cout<<"All iterations finished"<<"\n";
+    */
     Point chk_pnt[256];
-    char *mat_buf = (char*) malloc(sizeof(char)*2056);
-    int chk_cnt;
-    int even = 0;
-
+    //   char *mat_buf = (char*) malloc(sizeof(char)*2056);
+        int chk_cnt;
+       int even = 0;
+     /*
     list<double*> trajectory;
     if (rrts.getBestTrajectory(trajectory)) {
       list<double*>::const_iterator iterator;
@@ -302,7 +303,12 @@ int main (int argc, char**argv) {
       cout << "- Trajectory not found..." << endl;
     }
     /*-RRT* initialization end-*/
-    
+    chk_pnt[0].x = rc_loc.x;chk_pnt[0].y = rc_loc.y;
+for (int i = 0; i < obs_count; i ++) {
+  chk_pnt[i + 1].x = obs_loc[i].x;
+  chk_pnt[i+1].y = obs_loc[i].y;
+      }
+       
     /*-set up ROS subscription-*/
     ros::init(argc, argv, "RRTstar");
     ros::NodeHandle n;
@@ -313,16 +319,16 @@ int main (int argc, char**argv) {
     ::racecar::POINT check_pt;
     ros::Rate loop_rate(100);
     /*-Send trajectory to PID-*/
-    for(int i =0 ; i < chk_cnt; i++){
+    /*    for(int i =0 ; i < chk_cnt; i++){
       check_pt.point_x = chk_pnt[i].x;
       check_pt.point_y = chk_pnt[i].y;
       trajec.trajectory.push_back(check_pt);
-    }
+      }*/
     /*-Send trajectory to MATLAB-*/
-    cout<<"sending trajectory to MATLAB for debuf"<<endl;
+    /* cout<<"sending trajectory to MATLAB for debuf"<<endl;
     num = write(sockfd, mat_buf, (even-1)*sizeof(double));
-    cout<<num<<endl;
-    for(int i =0; i < 50; i++) {
+    cout<<num<<endl;*/
+    for(int i =0; i < obs_count+1; i++) {
       ROS_INFO("publish trajectory");
       trajectory_pub.publish(trajec);
       ros::spinOnce();
@@ -355,7 +361,7 @@ int main (int argc, char**argv) {
 		loop_rate.sleep();
 		}
     close(sockfd);
-    free(mat_buf);
+    // free(mat_buf);
     sockfd =-1;
     return 0;
 
