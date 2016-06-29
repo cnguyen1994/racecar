@@ -21,6 +21,7 @@ extern "C" {
 #include <iostream>
 #include <vector>
 
+
 #include "rrts.hpp"
 #include "system_single_integrator.h"
 
@@ -129,13 +130,13 @@ int main (int argc, char**argv) {
   }*/
   /* declare goal region size */
   Position gr_size;
-  gr_size.x = 200;
-  gr_size.y = 200;
+  gr_size.x = 0.1;//200 mm
+  gr_size.y = 0.1;//200 mm
   
   /* declare region operating size */
   Position ro_size;
-  ro_size.x = 10000;
-  ro_size.y = 10000;
+  ro_size.x = 10;//10000 mm
+  ro_size.y = 10;//10000 mm
   
   /*-ViCon client initialization stt----------------------------------------*/
   int portno, num;
@@ -242,8 +243,8 @@ int main (int argc, char**argv) {
 
      obstacle->center[0] = obs_loc[i].x;
      obstacle->center[1] = obs_loc[i].y;
-     obstacle->size[0] = 300;
-     obstacle->size[1] = 200;
+     obstacle->size[0] = 0.6;//600
+     obstacle->size[1] = 0.4;//400
      system.obstacles.push_front (obstacle);  // Add the obstacle to the list
    } 
     
@@ -267,30 +268,36 @@ int main (int argc, char**argv) {
     //   optimality. Larger values will weigh on optimization 
     //   rather than exploration in the RRT* algorithm. Lower 
     //   values, such as 0.1, should recover the RRT.
-    rrts.setGamma (1.5);
+    rrts.setGamma (10);
 
-    
+    clock_t start = clock();
     
     // Run the algorithm for 10000 iteartions
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i <10000; i++) {
         cout<<"itertations: "<<i<<"\n";
         rrts.iteration ();
     }
+    clock_t finish = clock();
+    cout<<"Time: "<< ((double)(finish-start))/CLOCKS_PER_SEC <<endl;
     cout<<"All iterations finished"<<"\n";
+
     
     Point chk_pnt[256];
-    char *mat_buf = (char*) malloc(sizeof(char)*2056);
+    char mat_buf[2056];
+    char *mat_ptr;
+    mat_ptr = &mat_buf[0];
     int chk_cnt;
+    int itr = 0;
     int even = 0;
      
     list<double*> trajectory;
     if (rrts.getBestTrajectory(trajectory)) {
       list<double*>::const_iterator iterator;
       for (iterator = trajectory.begin(); iterator != trajectory.end(); iterator ++) {
-	sprintf(mat_buf + (sizeof(double)*even), "|%f|", *(*iterator));
+	//sprintf(mat_ptr + (sizeof(double)*even), "|%f|", *(*iterator));
 	if (even % 2 == 0) {
-	  chk_pnt[chk_cnt].x = *(*iterator);
-	  chk_pnt[chk_cnt].y = *(*iterator+1);
+	  chk_pnt[chk_cnt].x = *(*iterator) * 1000;
+	  chk_pnt[chk_cnt].y = *(*iterator+1) * 1000;
 	  chk_cnt ++;
 	}
 	even ++;
@@ -298,6 +305,10 @@ int main (int argc, char**argv) {
       cout << "- Best trajectory found..." << endl;
       cout << "List size: " << chk_cnt << endl;
       for (int i = 0; i < chk_cnt; i ++) {
+	sprintf(mat_ptr, "|%f|", chk_pnt[i].x);
+	mat_ptr += sizeof(chk_pnt[i].x);
+	sprintf(mat_ptr, "|%f|", chk_pnt[i].y);
+	mat_ptr += sizeof(chk_pnt[i].y);
 	cout << chk_pnt[i].x << ", " << chk_pnt[i].y << endl;
       }
     }
@@ -328,9 +339,9 @@ int main (int argc, char**argv) {
     }
     /*-Send trajectory to MATLAB-*/
     cout<<"sending trajectory to MATLAB for debuf"<<endl;
-    num = write(sockfd, mat_buf, (even-1)*sizeof(double));
+    num = write(sockfd, mat_buf, chk_cnt * 2 *sizeof(double));
     cout<<num<<endl;
-    for(int i =0; i < chk_cnt; i++) {
+    for(int i =0; i < 35; i++) {
       ROS_INFO("publish trajectory");
       trajectory_pub.publish(trajec);
       ros::spinOnce();
@@ -339,31 +350,28 @@ int main (int argc, char**argv) {
     /*-Send complete-*/
 
     /*-Tracking Car program-*/
-    	while(ros::ok()) {
-		/* publishing at 10Mhz */
-		//ros::Rate loop_rate(10);
-
-	        bzero(buffer, 2056);
-		strcpy(buffer, "get_state2minimal");
-		num = write(sockfd, buffer, strlen(buffer));
-		if (num < 0)
-			ROS_INFO("ERROR writing to socket");
-		bzero(buffer, 1024);
-		num = read(sockfd, buffer, 1024);
-		if (num < 0) {
+    while(ros::ok()) {
+      
+       bzero(buffer, 2056);
+       strcpy(buffer, "get_state2minimal");
+       num = write(sockfd, buffer, strlen(buffer));
+       if (num < 0)
+	      ROS_INFO("ERROR writing to socket");
+       bzero(buffer, 1024);
+       num = read(sockfd, buffer, 1024);
+       if (num < 0) 
 			ROS_INFO("ERROR reading from socket");	
-		}
-		char **tokens = parse_str(buffer, ',');
-		loc_data.x_cor = atof(*(tokens));
-		loc_data.y_cor = atof(*(tokens + 1));
-		loc_data.heading = atof(*(tokens +2));
-		ROS_INFO("publishing: x: %f, y: %f, heading: %f", loc_data.x_cor, loc_data.y_cor, loc_data.heading);
-		localization_pub.publish(loc_data);
-		ros::spinOnce();
-		loop_rate.sleep();
-		}
+       char **tokens = parse_str(buffer, ',');
+       loc_data.x_cor = atof(*(tokens));
+       loc_data.y_cor = atof(*(tokens + 1));
+       loc_data.heading = atof(*(tokens +2));
+       ROS_INFO("publishing: x: %f, y: %f, heading: %f", loc_data.x_cor, loc_data.y_cor, loc_data.heading);
+       localization_pub.publish(loc_data);
+       ros::spinOnce();
+       loop_rate.sleep();
+    }
     close(sockfd);
-    free(mat_buf);
+    //free(mat_buf);
     sockfd =-1;
     return 0;
 

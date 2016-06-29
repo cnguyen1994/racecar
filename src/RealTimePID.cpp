@@ -70,7 +70,7 @@ public:
 	}
 	void callBack_localization(const racecar::LOC::ConstPtr& msg) 
 	{
-
+	  if(path_init == true) {
 		double val = (line->A*car_state->x) + (line->B*car_state->y)+ line->C;
 		/* previous location of car */
 		ROS_INFO("x: %f, y: %f, head: %f", car_state->x, car_state->y, car_state->heading);
@@ -78,7 +78,10 @@ public:
 		::racecar::CMD cmd;
 		/* calculate error variable */
 		error_an = (-1) * (car_state->heading -car_state->gamma);
-		error_d = sign_d(val) * abs(val) / sqrt(pow(line->A,2) + pow(line->B,2));
+		error_d =(-1) * sign_d(val) * abs(val) / sqrt(pow(line->A,2) + pow(line->B,2));       
+		if (abs(error_an) > PI){
+		  error_an = (-1)*sign_d(error_an)*(2*PI - abs(error_an));
+		}
 		ROS_INFO("error_an = %f, error_d = %f", error_an, error_d);
 		/* calculate initial steering angle */
 		steering = P1 * error_d + P2 * error_an;
@@ -89,13 +92,14 @@ public:
 		if (abs(round(steering2) - (car_state->InTemp)) >= 10){
 			car_state->InTemp = round(steering2);
 			cmd.mode = 'f';
-			cmd.speed = 37;
+			cmd.speed = 28;
 			cmd.steering = round(steering2);
 	
 			ROS_INFO("sending data: \n");
 			std::cout<<"data: speed" << cmd.speed <<", steering" <<cmd.steering<<"\n";
 			pub_.publish(cmd);
 		}
+	  }
 		/* update car state */
 		car_state->x = msg->x_cor;
 		car_state->y = msg->y_cor;
@@ -105,21 +109,23 @@ public:
 	}
         void callBack_trajectory(const racecar::TRA::ConstPtr& msg)
         {
-	  ROS_INFO("Receive trajectory data");
-	  pathsize = msg->trajectory.size();
-	  path = (TRAJECTORY **)malloc(sizeof(TRAJECTORY *) * pathsize);
-	  for(int i =0; i< pathsize; i++){
-	    path[i] = (TRAJECTORY *)calloc(sizeof(TRAJECTORY), 1);
-	    path[i]->x1 = msg->trajectory[i].point_x;
-	    path[i]->x2 = msg->trajectory[i].point_y;
-	    ROS_INFO("point %d of path: x = %f , y = %f", i, path[i]->x1, path[i]->x2);
+	  if(path_init == false) {
+	    ROS_INFO("Receive trajectory data");
+	    pathsize = msg->trajectory.size();
+	    path = (TRAJECTORY **)malloc(sizeof(TRAJECTORY *) * pathsize);
+	    for(int i =0; i< pathsize; i++){
+	      path[i] = (TRAJECTORY *)calloc(sizeof(TRAJECTORY), 1);
+	      path[i]->x1 = msg->trajectory[i].point_x;
+	      path[i]->x2 = msg->trajectory[i].point_y;
+	      ROS_INFO("point %d of path: x = %f , y = %f", i, path[i]->x1, path[i]->x2);
+	    }
 	  }
 	  path_init = true;
 	}
 	void stop()
 	{
 		::racecar::CMD cmd;
-		cmd.mode ='f';
+		cmd.mode ='1';
 		cmd.speed = 0;
 		cmd.steering = 1500;
 		ROS_INFO("Stopping the car");
@@ -178,8 +184,8 @@ int PID_init() {
 	car_state->heading = 0;
 	car_state->InTemp = -1;
 	car_state->gamma = 0;
-	P1 = 0.225;//0.225
-	P2 = 500;//500
+	P1 = 0.275;//0.225
+	P2 = 350;//500
 	I = 0;
 	D = 0;	
 	pError = 0;
@@ -226,7 +232,7 @@ int main (int argc, char **argv) {
 		if (car_state->gamma < 0) {
 			car_state->gamma = car_state->gamma +2 * PI;
 		}
-		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>650 && ros::ok()) {
+		while(sqrt(pow((car_state->x - path[k+1]->x1), 2) + pow((car_state->y - path[k+1]->x2), 2))>800 && ros::ok()) {
 			ROS_INFO("travelling to next point");
 			ros::spinOnce();
 			loop_rate.sleep();
