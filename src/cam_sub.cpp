@@ -51,7 +51,8 @@ void nix_exit_handler(int s) {
 #endif
 
 int main(int argc, char **argv) {
-  std::string filename = "/media/ubuntu/51CD-3922/zed_record_2.svo";
+  sleep(3);
+  std::string filename = "/home/ubuntu/Videos/zed_record_2.svo";
 
     bool display = 0;
     int resolution = 2; //Default resolution is set to HD720
@@ -95,7 +96,7 @@ int main(int argc, char **argv) {
         //simple recording function
         bool test = zed->record(); // record the current frame with the predefined size
 
-        if (display && !test) zed->displayRecorded(); // convert the image to RGB and display it
+        //if (display && !test) zed->displayRecorded(); // convert the image to RGB and display it
     }
 
     return 0;

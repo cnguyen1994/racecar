@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 	action->mode = 'f';
 	/* open serial port */
 	sleep(3); //wait for tty to init
-	fd = open("/dev/arduino_mega", O_RDWR | O_NOCTTY);
+	fd = open("/dev/arduino_uno", O_RDWR | O_NOCTTY);
 	printf("fd opened as %d\n", fd);
 	  
 	/* wait for the Arduino to reboot */

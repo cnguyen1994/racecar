@@ -1,3 +1,4 @@
+//receive speed and loop number from MATLAB
 #include "ros/ros.h"
 #include "racecar/CMD.h"
 #include "racecar/LOC.h"
@@ -47,6 +48,8 @@ int j = 0 ;
 int turn = 650;
 bool path_init = false;
 bool loop_init = false;
+bool speed_init = false;
+static int speed = 0;
 static int loop_num = 1;
 static int pathsize = 0;
 static char *buffer = NULL;
@@ -74,11 +77,18 @@ public:
 		sub_loc = n_.subscribe("localization", 1000, &SubscribeandPublish::callBack_localization, this);
 		sub_tra = n_.subscribe("trajectory", 1000,  &SubscribeandPublish::callBack_trajectory, this);
 		sub_loop = n_.subscribe("loop_num", 1000,  &SubscribeandPublish::callBack_loop, this);
+                sub_speed = n_.subscribe("speed", 1000,  &SubscribeandPublish::callBack_speed, this);
 	}
 	void callBack_loop(const std_msgs::Int32::ConstPtr& msg) {
 		
 		loop_num = msg->data;
 		loop_init = true;
+
+	}
+        void callBack_speed(const std_msgs::Int32::ConstPtr& msg) {
+		
+		speed = msg->data;
+		speed_init = true;
 
 	}
 	void callBack_localization(const racecar::LOC::ConstPtr& msg) 
@@ -90,8 +100,8 @@ public:
 		/* create command message to publish */ 
 		::racecar::CMD cmd;
 		/* calculate error variable */
-		error_an = (-1)* (car_state->heading -car_state->gamma);
-		error_d = (-1)*sign_d(val) * abs(val) /sqrt(pow(line->A,2) + pow(line->B,2));
+		error_an =  (car_state->heading -car_state->gamma);
+		error_d = sign_d(val) * abs(val) /sqrt(pow(line->A,2) + pow(line->B,2));
 		if (abs(error_an) > PI){
 			error_an = (-1)*sign_d(error_an)*(2*PI - abs(error_an));
 		}
@@ -99,17 +109,13 @@ public:
 		/* calculate initial steering angle */
 		steering = P1 * error_d + P2 * error_an;
 		/* calculate final steering angle */
-		steering2 = 1000 / (1+exp((-steering)/K)) + 1000;
+		steering2 = 600 / (1+exp((-steering)/K)) + 1250;
 		ROS_INFO("steering2 = %f, InTemp = %f", round(steering2), car_state->InTemp);
 		/* send command if steering angle is different from that of the previous one */
 		if (abs(round(steering2) - (car_state->InTemp)) >= 10){
 			car_state->InTemp = round(steering2);			
-			cmd.mode = 'f';
-			if ( j % 2 == 0)
-			cmd.speed = 47;
-			
-			else
-			cmd.speed = 47;
+			cmd.mode = 'f';				        
+			cmd.speed = speed;   			
 			cmd.steering = round(steering2);
 	
 			ROS_INFO("sending data: \n");
@@ -140,9 +146,10 @@ public:
 	void stop()
 	{
 		::racecar::CMD cmd;
-		cmd.mode ='1';
+		cmd.mode ='f';
 		cmd.speed = 0;
-		cmd.steering = 1500;
+              //cmd.speed = 0;
+		cmd.steering = 1550;
 		ROS_INFO("Stopping the car");
 		pub_.publish(cmd);
 	}
@@ -153,6 +160,7 @@ private:
   	ros::Subscriber sub_loc;
         ros::Subscriber sub_tra;
 	ros::Subscriber sub_loop;
+	ros::Subscriber sub_speed;
 };
 /*********************************************
 * function: sign_d() 
@@ -178,38 +186,7 @@ int sign_d(double val) {
 int PID_init() {
 	sleep(3);
 	int i;
-       	/* declare trajectory */
-	/*
-	path[0]->x1 = 1826; path[0]->x2 = -3127;
-	path[1]->x1 = 927; path[1]->x2 = -2070;
-	path[2]->x1 = 419; path[2]->x2 = -1028;
-	path[3]->x1 = 931; path[3]->x2 = 208;
-	path[4]->x1 = 1666; path[4]->x2 = 1244;
-	path[5]->x1 = 1395; path[5]->x2 = 2398;
-*/
-/*	path[0]->x1 = 973.5786; path[0]->x2 = -3597;	
-	path[1]->x1 = 514.6813; path[1]->x2 = -3509.8;
-	path[2]->x1 = 108.8113; path[2]->x2 = -3278.4;
-	path[3]->x1 = -126.8207; path[3]->x2 = -2952.4;
-	path[4]->x1 = -157.6434; path[4]->x2 = -2474.9;
-	path[5]->x1 = -151.8605; path[5]->x2= -882.1;
-	path[6]->x1 = -158.1; path[6]->x2 = 40.95;
-	path[7]->x1 = -154.27; path[7]->x2 = 970.2;
-	path[8]->x1 = -140.97; path[8]->x2 = 1222;
-	path[9]->x1 = -22.33; path[9]->x2 = 1527.4;
-	path[10]->x1 = 312.6; path[10]->x2 = 1797.2;
-	path[11]->x1 = 860.9; path[11]->x2 = 1969.1;
-	path[12]->x1 = 1391.5; path[12]->x2 = 1801.3;
-	path[13]->x1 = 1763.5; path[13]->x2 = 1570.7;
-	path[14]->x1 = 1880.2; path[14]->x2 = 1225.3;
-	path[15]->x1 = 1901.5; path[15]->x2 = 597.93;
-	path[16]->x1 = 1913.3; path[16]->x2= 73.7;
-	path[17]->x1 = 1906.9; path[17]->x2 = -891.7;
-	path[18]->x1 = 1953.6; path[18]->x2 = -2432.1;
-	path[19]->x1 = 1979.9; path[19]->x2 = -2926.1;
-	path[20]->x1 = 1750.7; path[20]->x2 = -3254;
-	path[21]->x1 = 1423.4; path[21]->x2 = -3470.2;
-	path[22]->x1 = 973.5786; path[22]->x2 = -3597;
+      
 	/* allocate data structure to hold car's state */
 	car_state = (STATE *) calloc(sizeof(STATE),1);
 	/* allocate data structure to path constant */
@@ -223,8 +200,8 @@ int PID_init() {
 	car_state->heading = 0;
 	car_state->InTemp = -1;
 	car_state->gamma = 0;
-	P1 = 0.275;//0.225;0.27
-	P2 = 350;//500;465
+	P1 = 0.27;//0.225;0.27
+	P2 = 465;//500;465
 	I = 0;
 	D = 0;	
 	pError = 0;
@@ -258,19 +235,28 @@ int main (int argc, char **argv) {
 	//::racecar::CMD cmd;
 	/* main control loop */
 	
-
+        do {
+	  ROS_INFO("waiting for loop_num");
+	  ros::spinOnce();
+	  loop_rate.sleep();
+	}while(loop_init == false && ros::ok());
+	printf(" - Loops: %d", loop_num);
 	do {
+	  ROS_INFO("waiting for speed");
+	  ros::spinOnce();
+	  loop_rate.sleep();
+	}while(speed_init == false && ros::ok());
+        printf(" - Speed: %d", speed);
+	sleep(2);
+	
+       do {
 	  ROS_INFO("waiting for trajectory");
 	  ros::spinOnce();
 	  loop_rate.sleep();
 	}while(path_init == false && ros::ok());
 
-	do {
-	  ROS_INFO("waiting for loop_num");
-	  ros::spinOnce();
-	  loop_rate.sleep();
-	}while(loop_init == false && ros::ok());
 	
+
       printf("-run %d loops",loop_num);
       sleep(1);
 
