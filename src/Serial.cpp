@@ -151,7 +151,7 @@ int main(int argc, char **argv) {
 	/* set up subscription */ 
 	ros::init(argc, argv, "Serial");
 	Subscriber sub;
-	ros::Rate loop_rate(100);
+	ros::Rate loop_rate(50);
 	ros::Duration time = loop_rate.expectedCycleTime();
 	std::cout <<time<<'\n';
 	printf("start serial program \n");
